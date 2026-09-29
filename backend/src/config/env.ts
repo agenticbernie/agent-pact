@@ -25,7 +25,7 @@ export function getConfig(): AppConfig {
     solana: {
       network: process.env.SOLANA_NETWORK || "devnet",
       rpcUrl: process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com",
-      usdcMint: process.env.USDC_MINT || "4zMMC9srt5Ri5X14kAg4P8z6pS6vYspbbNs7AzpFpDmS",
+      usdcMint: process.env.USDC_MINT || "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
     },
     dataDir: process.env.DATA_DIR || "./data",
     port: Number(process.env.PORT || 4000),

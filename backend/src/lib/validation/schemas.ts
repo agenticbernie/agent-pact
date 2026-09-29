@@ -7,7 +7,16 @@ export const base58Address = z
   .string()
   .min(32)
   .max(44)
-  .refine((v) => PublicKey.isValid(v), { message: "Invalid Solana wallet address" });
+  .refine((v) => isSolanaAddress(v), { message: "Invalid Solana wallet address" });
+
+function isSolanaAddress(value: string): boolean {
+  try {
+    new PublicKey(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export const usdcAmountString = z
   .string()

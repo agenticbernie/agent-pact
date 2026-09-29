@@ -1,5 +1,5 @@
 import type { Policy, PolicyReasonCode, PolicyResult } from "../../types";
-import { parseUsdc } from "../usdc/parse";
+import { formatUsdc, parseUsdc } from "../usdc/parse";
 
 /**
  * Deterministic policy engine. Policy decisions NEVER use the LLM —
@@ -37,7 +37,7 @@ export function evaluatePolicy(input: PolicyEvaluationInput): PolicyResult {
   if (amountBaseUnits > maxBase) {
     return deny(
       "PAYMENT_LIMIT_EXCEEDED",
-      `This payment of ${policy.maxPaymentAmount && amountDisplay(input)} USDC exceeds your maximum single payment of ${policy.maxPaymentAmount} USDC.`
+      `This payment of ${formatUsdc(amountBaseUnits)} USDC exceeds your maximum single payment of ${policy.maxPaymentAmount} USDC.`
     );
   }
   if (settledTodayBaseUnits + amountBaseUnits > dailyBase) {
@@ -51,13 +51,6 @@ export function evaluatePolicy(input: PolicyEvaluationInput): PolicyResult {
   }
 
   return { allowed: true, reasonCode: "ALLOWED", message: "Payment allowed by policy." };
-}
-
-function amountDisplay(input: PolicyEvaluationInput): string {
-  const { USDC_SCALE } = require("../usdc/parse") as typeof import("../usdc/parse");
-  const whole = input.amountBaseUnits / USDC_SCALE;
-  const frac = (input.amountBaseUnits % USDC_SCALE).toString().padStart(6, "0").replace(/0+$/, "");
-  return frac ? `${whole}.${frac}` : `${whole}`;
 }
 
 function deny(reasonCode: PolicyReasonCode, message: string): PolicyResult {

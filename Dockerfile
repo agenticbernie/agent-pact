@@ -17,7 +17,7 @@ COPY backend/ ./
 FROM node:22-slim AS runtime
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends nginx \
+    && apt-get install -y --no-install-recommends nginx curl \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/nginx/sites-enabled/default
 

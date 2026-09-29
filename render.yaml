@@ -1,0 +1,45 @@
+# Render Blueprint — deploy Pact to render.com
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Quick start:
+#   1. Push this branch to GitHub.
+#   2. In Render, create a new Blueprint from your repo (New → Blueprint).
+#   3. Add the OPENROUTER_API_KEY secret in the Render dashboard (or it will be
+#      prompted during blueprint apply). The app boots fine without it — manual
+#      payments work; AI parse returns a fallback message until it's set.
+#   4. Render builds the Dockerfile (nginx SPA + Express backend, single container)
+#      and deploys on every push.
+
+services:
+  - type: web
+    name: pact
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # The Dockerfile EXPOSEs 3000 (nginx serving SPA + proxying /api to the backend).
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: OPENROUTER_API_KEY
+        sync: false # secret — set in the Render dashboard
+      - key: LLM_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: LLM_MODEL
+        value: nvidia/nemotron-3-super-120b-a12b:free
+      - key: LLM_TEMPERATURE
+        value: "0"
+      - key: SOLANA_NETWORK
+        value: devnet
+      - key: SOLANA_RPC_URL
+        value: https://api.devnet.solana.com
+      - key: USDC_MINT
+        value: 4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU
+    # Persistent disk for the JSON store (DATA_DIR=/data in the Dockerfile).
+    # Requires a paid plan (starter or above); remove this block if you don't
+    # need persistence across deploys.
+    disk:
+      name: pact-data
+      mountPath: /data
+      sizeGB: 1

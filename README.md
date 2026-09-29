@@ -70,6 +70,22 @@ GET  /api/health                     GET /api/settings
 - Intents expire after 5 minutes; terminal intents are never re-executable (state machine + nonce).
 - Settlement is marked only after real on-chain confirmation.
 
+## Deploy (render.com)
+
+The repo includes a `render.yaml` Blueprint and a production `Dockerfile`
+(nginx serving the built SPA + proxying `/api` to the Express backend, single
+container on port 3000).
+
+1. Push this branch to GitHub.
+2. In Render: **New → Blueprint**, select this repository.
+3. Set the `OPENROUTER_API_KEY` secret in the Render dashboard (or accept the
+   prompt during blueprint apply). The app boots without it — manual payments
+   work; AI parse returns a fallback message until it's set.
+4. Render builds and deploys automatically on every push.
+
+The `pact-data` persistent disk (1 GB at `/data`) requires a paid plan; remove
+the `disk` block in `render.yaml` if persistence across deploys isn't needed.
+
 ## Tests
 
 ```bash

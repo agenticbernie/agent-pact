@@ -1,7 +1,7 @@
 import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
 import { WalletProvider } from "./features/wallet/WalletContext";
-import BottomNav from "./components/BottomNav";
-import WalletButton from "./components/WalletButton";
+import BottomNavigation from "./components/BottomNav";
+import PactHeader from "./components/PactHeader";
 import Home from "./pages/Home";
 import Pay from "./pages/Pay";
 import Confirm from "./pages/Confirm";
@@ -12,16 +12,13 @@ import Settings from "./pages/Settings";
 
 function Shell() {
   return (
-    <>
-      <header className="app-header">
-        <span className="brand">Pact</span>
-        <WalletButton />
-      </header>
+    <div className="app">
+      <PactHeader />
       <main className="page">
         <Outlet />
       </main>
-      <BottomNav />
-    </>
+      <BottomNavigation />
+    </div>
   );
 }
 

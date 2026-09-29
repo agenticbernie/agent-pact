@@ -1,43 +1,29 @@
 import { useWallet } from "../features/wallet/WalletContext";
 import { shortAddress } from "../lib/format";
-import { Button, ErrorNote } from "./ui";
-import { useState } from "react";
 
-export default function WalletButton() {
-  const { address, connecting, available, connect, disconnect } = useWallet();
-  const [error, setError] = useState<string | null>(null);
+/** Connected wallet pill (or a Connect action when no wallet is connected). */
+export default function WalletPill({ onError }: { onError?: (message: string | null) => void }) {
+  const { address, connecting, connect, disconnect } = useWallet();
 
   if (address) {
     return (
-      <button
-        className="wallet-chip"
-        onClick={() => disconnect()}
-        title="Disconnect wallet"
-      >
-        <span className="wallet-dot" />
-        {shortAddress(address)}
+      <button className="wallet-pill" onClick={() => disconnect()} title="Disconnect wallet">
+        <span className="live-dot" />
+        {shortAddress(address, 3)}
       </button>
     );
   }
 
   return (
-    <div className="wallet-connect">
-      {error ? <ErrorNote>{error}</ErrorNote> : null}
-      <Button
-        onClick={() => connect().catch((e: Error) => setError(e.message))}
-        disabled={connecting}
-      >
-        {connecting ? "Connecting…" : "Connect Wallet"}
-      </Button>
-      {!available ? (
-        <p className="wallet-hint">
-          Phantom not detected in this window — you can also{" "}
-          <a href={window.location.href} target="_blank" rel="noreferrer">
-            open Pact in a full browser tab
-          </a>{" "}
-          where your wallet extension is available.
-        </p>
-      ) : null}
-    </div>
+    <button
+      className="wallet-pill connect"
+      disabled={connecting}
+      onClick={() => {
+        onError?.(null);
+        connect().catch((e: Error) => onError?.(e.message));
+      }}
+    >
+      {connecting ? "Connecting…" : "Connect wallet"}
+    </button>
   );
 }

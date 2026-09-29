@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useWallet } from "../features/wallet/WalletContext";
 import { api } from "../lib/api";
-import { explorerTxUrl, prettyAmount, timeAgo } from "../lib/format";
-import { Card, ErrorNote, Spinner, StatusBadge } from "../components/ui";
-import type { AppSettings, PaymentIntent } from "../types";
+import { dayLabel, explorerTxUrl } from "../lib/format";
+import { useSettings } from "../lib/useSettings";
+import TransactionRow from "../components/TransactionRow";
+import { Card, ErrorNote, Spinner } from "../components/ui";
+import type { PaymentIntent } from "../types";
 
 export default function Activity() {
   const { address } = useWallet();
+  const settings = useSettings();
   const [intents, setIntents] = useState<PaymentIntent[]>([]);
-  const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,9 +20,8 @@ export default function Activity() {
     setLoading(true);
     setError(null);
     try {
-      const [res, cfg] = await Promise.all([api.listIntents(address), api.settings()]);
+      const res = await api.listIntents(address);
       setIntents(res.intents);
-      setSettings(cfg);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load activity.");
     } finally {
@@ -31,60 +33,80 @@ export default function Activity() {
     load();
   }, [load]);
 
+  const groups = useMemo(() => {
+    const map = new Map<string, PaymentIntent[]>();
+    for (const i of intents) {
+      const key = dayLabel(i.createdAt);
+      map.set(key, [...(map.get(key) ?? []), i]);
+    }
+    return [...map.entries()];
+  }, [intents]);
+
   if (!address) {
     return (
       <Card>
-        <h1 className="page-title">Activity</h1>
-        <p className="empty">Connect your wallet to see your payment history.</p>
+        <h1 className="section-title">Activity</h1>
+        <p className="empty" style={{ marginTop: 8 }}>Connect your wallet to see your payment history.</p>
       </Card>
     );
   }
 
   return (
-    <div className="stack">
-      <div className="card-head">
+    <>
+      <div className="row">
         <h1 className="page-title">Activity</h1>
-        <button className="link" onClick={load} type="button">Refresh</button>
+        <button className="link" onClick={load} type="button">
+          Refresh
+        </button>
       </div>
       {loading && intents.length === 0 ? <Spinner /> : null}
       {error ? <ErrorNote>{error}</ErrorNote> : null}
       {intents.length === 0 && !loading ? (
-        <Card>
-          <p className="empty">No payments yet. Your confirmed and settled payments will appear here.</p>
-        </Card>
+        <p className="empty">No payments yet. Your payments will appear here.</p>
       ) : (
-        <ul className="tx-list card">
-          {intents.map((intent) => (
-            <li key={intent.id} className="tx-row">
-              <div className="tx-main">
-                <span className="tx-name">{intent.recipientName}</span>
-                <span className="tx-sub">
-                  −{prettyAmount(intent.amountDisplay)} USDC
-                  {intent.memo ? ` · ${intent.memo}` : ""}
-                </span>
-                {intent.status === "SETTLED" && intent.transactionSignature ? (
-                  <a
-                    className="tx-link"
-                    href={explorerTxUrl(intent.transactionSignature, settings?.network ?? "devnet")}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    View on Solana Explorer ↗
-                  </a>
-                ) : intent.status === "REJECTED" && intent.policyResult ? (
-                  <span className="tx-sub">{intent.policyResult.message}</span>
-                ) : intent.status === "FAILED" && intent.failureReason ? (
-                  <span className="tx-sub">{intent.failureReason}</span>
-                ) : null}
-              </div>
-              <div className="tx-side">
-                <StatusBadge status={intent.status} />
-                <span className="tx-time">{timeAgo(intent.createdAt)}</span>
-              </div>
-            </li>
-          ))}
-        </ul>
+        groups.map(([label, items]) => (
+          <section key={label}>
+            <h2 className="date-head">{label}</h2>
+            <div className="card flush">
+              {items.map((intent, i) => (
+                <div key={intent.id}>
+                  {i > 0 ? <div className="hairline" /> : null}
+                  <TransactionRow intent={intent} />
+                  <ActivityNote intent={intent} network={settings?.network ?? "devnet"} />
+                </div>
+              ))}
+            </div>
+          </section>
+        ))
       )}
-    </div>
+    </>
   );
+}
+
+function ActivityNote({ intent, network }: { intent: PaymentIntent; network: string }) {
+  if (intent.status === "SETTLED" && intent.transactionSignature) {
+    return (
+      <div className="tx-note">
+        <a className="link" href={explorerTxUrl(intent.transactionSignature, network)} target="_blank" rel="noreferrer">
+          View on Solana Explorer ↗
+        </a>
+      </div>
+    );
+  }
+  if (intent.status === "AWAITING_CONFIRMATION" || intent.status === "CONFIRMED") {
+    return (
+      <div className="tx-note">
+        <Link className="link" to={`/confirm/${intent.id}`}>
+          Review payment →
+        </Link>
+      </div>
+    );
+  }
+  if (intent.status === "REJECTED" && intent.policyResult) {
+    return <div className="tx-note">{intent.policyResult.message}</div>;
+  }
+  if (intent.status === "FAILED" && intent.failureReason) {
+    return <div className="tx-note">{intent.failureReason}</div>;
+  }
+  return null;
 }

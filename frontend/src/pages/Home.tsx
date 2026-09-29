@@ -2,28 +2,31 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useWallet } from "../features/wallet/WalletContext";
 import { api } from "../lib/api";
-import { prettyAmount, timeAgo } from "../lib/format";
-import { Card, ErrorNote, Spinner, StatusBadge } from "../components/ui";
+import { networkName, prettyAmount } from "../lib/format";
+import { useSettings } from "../lib/useSettings";
+import AskPactInput from "../components/AskPactInput";
+import BalanceDisplay from "../components/BalanceDisplay";
+import TransactionRow from "../components/TransactionRow";
+import { Button, ErrorNote, Icon } from "../components/ui";
 import type { PaymentIntent, UsdcBalanceInfo } from "../types";
 
 export default function Home() {
   const { address } = useWallet();
+  const settings = useSettings();
   const navigate = useNavigate();
   const [balance, setBalance] = useState<UsdcBalanceInfo | null>(null);
   const [recent, setRecent] = useState<PaymentIntent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ask, setAsk] = useState("");
+  const [receiveOpen, setReceiveOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!address) return;
     setLoading(true);
     setError(null);
     try {
-      const [bal, intents] = await Promise.all([
-        api.getBalance(address),
-        api.listIntents(address),
-      ]);
+      const [bal, intents] = await Promise.all([api.getBalance(address), api.listIntents(address)]);
       setBalance(bal.balance);
       setRecent(intents.intents.slice(0, 3));
     } catch (e) {
@@ -39,76 +42,92 @@ export default function Home() {
     refresh();
   }, [refresh]);
 
+  const balanceText = !address ? "—" : balance ? prettyAmount(balance.display) : loading ? "…" : "—";
+
   return (
-    <div className="stack">
-      <section className="balance-card">
-        <p className="balance-label">USDC Balance</p>
-        {address ? (
-          loading && !balance ? (
-            <Spinner />
-          ) : (
-            <p className="balance-value">{balance ? prettyAmount(balance.display) : "—"} <span>USDC</span></p>
-          )
-        ) : (
-          <p className="balance-muted">Connect your wallet to see your balance</p>
-        )}
-        {error ? <ErrorNote>{error}</ErrorNote> : null}
-      </section>
+    <>
+      <BalanceDisplay amount={balanceText} network={networkName(settings?.network)} address={address} />
+      {!address ? <p className="micro centered">Connect your wallet to see your balance.</p> : null}
+      {error ? <ErrorNote>{error}</ErrorNote> : null}
 
-      <Link to="/pay" className="pay-cta">Pay</Link>
+      <AskPactInput
+        value={ask}
+        onChange={setAsk}
+        onSubmit={() => {
+          if (ask.trim()) navigate(`/pay?ask=${encodeURIComponent(ask.trim())}`);
+        }}
+      />
 
-      <Card>
-        <h2 className="card-title">Ask Pact</h2>
-        <form
-          className="ask-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!ask.trim()) return;
-            navigate(`/pay?ask=${encodeURIComponent(ask.trim())}`);
-          }}
-        >
-          <input
-            value={ask}
-            onChange={(e) => setAsk(e.target.value)}
-            placeholder="Pay Felix 3 USDC for coffee"
-            aria-label="Describe a payment"
-          />
-          <button type="submit" className="btn btn-primary" disabled={!ask.trim()}>
-            Ask
-          </button>
-        </form>
-        <p className="micro">AI interprets your intent. You confirm. Your wallet signs.</p>
-      </Card>
+      <div className="quick-actions">
+        <Link to="/pay" className="btn">
+          <Icon name="north_east" /> Send
+        </Link>
+        <Button onClick={() => setReceiveOpen(true)}>
+          <Icon name="south_west" /> Receive
+        </Button>
+      </div>
 
-      <Card>
-        <div className="card-head">
-          <h2 className="card-title">Recent Activity</h2>
-          <Link to="/activity" className="link">View all</Link>
+      <section>
+        <div className="row" style={{ marginBottom: 12 }}>
+          <h2 className="section-title">Recent Activity</h2>
+          <Link to="/activity" className="link">
+            View all
+          </Link>
         </div>
         {!address ? (
           <p className="empty">Connect your wallet to see activity.</p>
         ) : recent.length === 0 ? (
           <p className="empty">No payments yet.</p>
         ) : (
-          <ul className="tx-list">
-            {recent.map((intent) => (
-              <li key={intent.id} className="tx-row">
-                <div className="tx-main">
-                  <span className="tx-name">{intent.recipientName}</span>
-                  <span className="tx-sub">
-                    −{prettyAmount(intent.amountDisplay)} USDC
-                    {intent.memo ? ` · ${intent.memo}` : ""}
-                  </span>
-                </div>
-                <div className="tx-side">
-                  <StatusBadge status={intent.status} />
-                  <span className="tx-time">{timeAgo(intent.createdAt)}</span>
-                </div>
-              </li>
+          <div className="card flush">
+            {recent.map((intent, i) => (
+              <div key={intent.id}>
+                {i > 0 ? <div className="hairline" /> : null}
+                <TransactionRow intent={intent} />
+              </div>
             ))}
-          </ul>
+          </div>
         )}
-      </Card>
+      </section>
+
+      {receiveOpen ? <ReceiveSheet address={address} onClose={() => setReceiveOpen(false)} /> : null}
+    </>
+  );
+}
+
+function ReceiveSheet({ address, onClose }: { address: string | null; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="overlay" role="dialog" aria-modal="true" aria-label="Receive USDC" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="centered">
+          <h2 className="section-title">Receive USDC</h2>
+          <p className="page-sub">Share your wallet address to receive USDC on Solana.</p>
+        </div>
+        {address ? (
+          <>
+            <div className="inset mono" style={{ wordBreak: "break-all", fontSize: 12 }}>
+              {address}
+            </div>
+            <Button
+              variant="tonal"
+              onClick={() => {
+                navigator.clipboard
+                  ?.writeText(address)
+                  .then(() => setCopied(true))
+                  .catch(() => {});
+              }}
+            >
+              <Icon name={copied ? "check" : "content_copy"} /> {copied ? "Copied" : "Copy address"}
+            </Button>
+          </>
+        ) : (
+          <p className="empty centered">Connect your wallet to see your address.</p>
+        )}
+        <Button variant="secondary" onClick={onClose}>
+          Close
+        </Button>
+      </div>
     </div>
   );
 }

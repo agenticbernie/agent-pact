@@ -1,55 +1,68 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { PublicKey } from "@solana/web3.js";
 import { useWallet } from "../features/wallet/WalletContext";
 import { api, type CreateIntentInput } from "../lib/api";
-import { AMOUNT_RE } from "../lib/format";
-import { Button, Card, ErrorNote, Field, InfoNote, Spinner } from "../components/ui";
+import { AMOUNT_RE, networkName, prettyAmount, shortAddress } from "../lib/format";
+import { useSettings } from "../lib/useSettings";
+import { Button, Card, DetailRow, ErrorNote, Field, Icon, InfoNote, Spinner } from "../components/ui";
 import type { ParsedPaymentIntent, Recipient } from "../types";
 
 export default function Pay() {
   const { address } = useWallet();
+  const settings = useSettings();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const initialAsk = params.get("ask");
-  const [tab, setTab] = useState<"ask" | "manual">(initialAsk ? "ask" : "manual");
+  const [tab, setTab] = useState<"ask" | "manual">("ask");
 
   // Clear the query param so refresh doesn't re-trigger parsing.
   useEffect(() => {
     if (initialAsk) navigate("/pay", { replace: true });
   }, [initialAsk, navigate]);
 
-  if (!address) {
-    return (
-      <Card>
-        <h1 className="page-title">Pay</h1>
-        <p className="empty">Connect your Solana wallet to make a payment.</p>
-      </Card>
-    );
-  }
-
   return (
-    <div className="stack">
-      <div className="tabs" role="tablist">
-        <button
-          role="tab"
-          aria-selected={tab === "ask"}
-          className={`tab ${tab === "ask" ? "tab-active" : ""}`}
-          onClick={() => setTab("ask")}
-        >
-          Ask Pact
-        </button>
-        <button
-          role="tab"
-          aria-selected={tab === "manual"}
-          className={`tab ${tab === "manual" ? "tab-active" : ""}`}
-          onClick={() => setTab("manual")}
-        >
-          Manual
-        </button>
+    <>
+      <div className="row">
+        <h1 className="page-title">Pay</h1>
+        <span className="chip tint">
+          <span className="dot" />
+          {networkName(settings?.network)}
+        </span>
       </div>
-      {tab === "ask" ? <AskFlow address={address} initialMessage={initialAsk ?? ""} /> : <ManualFlow address={address} />}
-    </div>
+
+      {!address ? (
+        <Card>
+          <p className="empty">Connect your Solana wallet to make a payment.</p>
+        </Card>
+      ) : (
+        <>
+          <div className="tabs" role="tablist">
+            <button
+              role="tab"
+              aria-selected={tab === "ask"}
+              className={`tab ${tab === "ask" ? "tab-active" : ""}`}
+              onClick={() => setTab("ask")}
+            >
+              <Icon name="auto_awesome" /> Ask Pact (AI)
+            </button>
+            <button
+              role="tab"
+              aria-selected={tab === "manual"}
+              className={`tab ${tab === "manual" ? "tab-active" : ""}`}
+              onClick={() => setTab("manual")}
+            >
+              <Icon name="tune" /> Manual
+            </button>
+          </div>
+          {tab === "ask" ? (
+            <AskFlow address={address} network={networkName(settings?.network)} initialMessage={initialAsk ?? ""} />
+          ) : (
+            <ManualFlow address={address} />
+          )}
+        </>
+      )}
+    </>
   );
 }
 
@@ -66,7 +79,7 @@ type AskStep =
   | { kind: "preview"; parsed: ParsedPaymentIntent; recipient: Recipient }
   | { kind: "creating" };
 
-function AskFlow({ address, initialMessage }: { address: string; initialMessage: string }) {
+function AskFlow({ address, network, initialMessage }: { address: string; network: string; initialMessage: string }) {
   const navigate = useNavigate();
   const [message, setMessage] = useState(initialMessage);
   const [step, setStep] = useState<AskStep>({ kind: "input" });
@@ -212,46 +225,79 @@ function AskFlow({ address, initialMessage }: { address: string; initialMessage:
     );
   }
 
-  if (step.kind === "preview") {
-    return (
-      <Card className="stack-sm">
-        <h2 className="card-title">I understood:</h2>
-        <div className="detail-stack">
-          <div className="detail-row"><span className="detail-label">Recipient</span><span className="detail-value">{step.recipient.name}</span></div>
-          <div className="detail-row"><span className="detail-label">Amount</span><span className="detail-value">{step.parsed.amount} USDC</span></div>
-          <div className="detail-row"><span className="detail-label">For</span><span className="detail-value">{step.parsed.memo ?? "—"}</span></div>
-        </div>
-        {step.parsed.confidence < 0.5 ? <InfoNote>Low confidence — please double-check these details.</InfoNote> : null}
-        <div className="btn-row">
-          <Button variant="secondary" onClick={() => setStep({ kind: "input" })}>Back</Button>
-          <Button onClick={() => createAndGo(step.parsed, step.recipient, message)}>Continue</Button>
-        </div>
-      </Card>
-    );
-  }
+  const previewing = step.kind === "preview";
 
   return (
-    <Card className="stack-sm">
+    <>
       <form
-        className="stack-sm"
+        className="card stack-sm"
         onSubmit={(e) => {
           e.preventDefault();
-          if (message.trim()) runParse(message.trim());
+          if (message.trim() && !previewing) runParse(message.trim());
         }}
       >
-        <Field label="What do you want to pay?">
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Pay Felix 3 USDC for coffee"
-            rows={3}
-            maxLength={500}
-          />
-        </Field>
-        <Button block disabled={!message.trim()}>Continue</Button>
+        <div className="row">
+          <span className="eyebrow cyan">
+            <Icon name="terminal" className="" /> Payment request
+          </span>
+          <span className="chip tint">OpenRouter • Nemotron</span>
+        </div>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Pay Felix 3 USDC for coffee"
+          rows={3}
+          maxLength={500}
+          readOnly={previewing}
+          aria-label="Payment request"
+        />
+        <div className="row">
+          <span className="micro" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Icon name="verified_user" className="cyan" /> AI cannot sign transactions
+          </span>
+          {!previewing ? (
+            <Button variant="tonal" className="btn-sm" disabled={!message.trim()}>
+              <Icon name="bolt" /> Interpret
+            </Button>
+          ) : null}
+        </div>
       </form>
-      <p className="micro">AI parses intent only. Nothing is sent without your explicit confirmation.</p>
-    </Card>
+
+      {step.kind === "preview" ? (
+        <Card className="stack-sm">
+          <div className="row">
+            <div>
+              <h2 className="section-title">I understood</h2>
+              <span className="micro">Payment details parsed</span>
+            </div>
+            <span className="badge badge-green">Interpreted</span>
+          </div>
+          <div className="inset" style={{ padding: "0 12px" }}>
+            <DetailRow icon="person" label="Recipient" value={step.recipient.name} sub={shortAddress(step.recipient.walletAddress)} />
+            <DetailRow icon="payments" label="Amount" value={`${prettyAmount(step.parsed.amount!)} USDC`} />
+            <DetailRow icon="notes" label="Memo" value={step.parsed.memo ? `“${step.parsed.memo}”` : "—"} />
+            <DetailRow icon="hub" label="Network" value={network} />
+          </div>
+          {step.parsed.confidence < 0.5 ? <InfoNote>Please double-check these details.</InfoNote> : null}
+          <div className="banner" style={{ background: "var(--bg-deep)" }}>
+            <Icon name="shield" />
+            <div>
+              <strong className="cyan">No payment has occurred yet.</strong>
+              <p>AI only interprets your request.</p>
+              <p>You must confirm and sign before funds move.</p>
+            </div>
+          </div>
+          <div className="btn-row">
+            <Button variant="secondary" onClick={() => setStep({ kind: "input" })}>
+              <Icon name="edit" /> Edit
+            </Button>
+            <Button onClick={() => createAndGo(step.parsed, step.recipient, message)}>
+              Continue to Confirm <Icon name="arrow_forward" />
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+    </>
   );
 }
 
@@ -296,8 +342,11 @@ function ClarifyStep({
               onAmount(value);
             }}
           >
-            <Field label="Amount (USDC)">
-              <input value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" placeholder="3" autoFocus />
+            <Field label="Amount">
+              <div className="amount-input">
+                <input value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" placeholder="3.00" autoFocus />
+                <span>USDC</span>
+              </div>
             </Field>
             {amountInvalid ? <ErrorNote>Up to 6 decimal places, e.g. 3.25</ErrorNote> : null}
             {error ? <ErrorNote>{error}</ErrorNote> : null}
@@ -308,7 +357,9 @@ function ClarifyStep({
         <>
           <h2 className="card-title">Who do you want to pay?</h2>
           {recipients.length === 0 ? (
-            <p className="empty">No saved recipients yet — add one on the Recipients screen.</p>
+            <p className="empty">
+              No saved recipients yet. <Link to="/recipients" className="link">Add a recipient</Link>.
+            </p>
           ) : (
             recipients.map((r) => (
               <Button key={r.id} variant="secondary" block onClick={() => onRecipient(r)}>
@@ -424,40 +475,40 @@ function ManualFlow({ address }: { address: string }) {
   }
 
   return (
-    <Card className="stack-sm">
-      <form
-        className="stack-sm"
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
-        }}
-      >
-        <Field label="Recipient">
-          {recipients.length === 0 ? (
-            <p className="empty">
-              No saved recipients yet. <a href="/recipients" className="link">Add a recipient</a> to start paying.
-            </p>
-          ) : (
-            <select value={recipientId} onChange={(e) => setRecipientId(e.target.value)}>
-              <option value="">Choose a recipient…</option>
-              {recipients.map((r) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </select>
-          )}
-        </Field>
-        <Field label="Amount (USDC)" hint="Up to 6 decimal places">
+    <form
+      className="card stack-sm"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <Field label="Recipient">
+        {recipients.length === 0 ? (
+          <p className="empty">
+            No saved recipients yet. <Link to="/recipients" className="link">Add a recipient</Link> to start paying.
+          </p>
+        ) : (
+          <select value={recipientId} onChange={(e) => setRecipientId(e.target.value)}>
+            <option value="">Choose a recipient…</option>
+            {recipients.map((r) => (
+              <option key={r.id} value={r.id}>{r.name}</option>
+            ))}
+          </select>
+        )}
+      </Field>
+      <Field label="Amount" hint="Token: USDC · up to 6 decimal places">
+        <div className="amount-input">
           <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="3.00" />
-        </Field>
-        <Field label="Memo (optional)">
-          <input value={memo} onChange={(e) => setMemo(e.target.value)} maxLength={140} placeholder="Coffee" />
-        </Field>
-        {error ? <ErrorNote>{error}</ErrorNote> : null}
-        <Button block disabled={submitting || !recipientId || !amount}>
-          {submitting ? "Creating…" : "Continue to confirmation"}
-        </Button>
-      </form>
-      <p className="micro">Token is fixed: USDC on Solana.</p>
-    </Card>
+          <span>USDC</span>
+        </div>
+      </Field>
+      <Field label="Memo (optional)">
+        <input value={memo} onChange={(e) => setMemo(e.target.value)} maxLength={140} placeholder="Coffee" />
+      </Field>
+      {error ? <ErrorNote>{error}</ErrorNote> : null}
+      <Button block disabled={submitting || !recipientId || !amount}>
+        {submitting ? "Creating…" : "Continue"}
+      </Button>
+    </form>
   );
 }

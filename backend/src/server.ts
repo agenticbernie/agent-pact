@@ -1,3 +1,5 @@
+import path from "node:path";
+import fs from "node:fs";
 import express, { type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import { PublicKey } from "@solana/web3.js";
@@ -25,6 +27,17 @@ app.use(cors());
 app.use(express.json({ limit: "100kb" }));
 
 registerRoutes(app);
+
+// Serve the built Vite frontend (production single-process mode).
+// In dev the dist directory doesn't exist, so this is a no-op and Vite handles routing.
+const frontendDist = process.env.FRONTEND_DIST || "/app/frontend/dist";
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+  // SPA fallback: every non-/api GET route serves index.html (supports React Router refresh).
+  app.get(/^\/(?!api).*/, (_req: Request, res: Response) => {
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+}
 
 // Error handling. Never leaks secrets; treats every error as opaque to the client.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

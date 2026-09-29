@@ -7,15 +7,16 @@
 #   3. Add the OPENROUTER_API_KEY secret in the Render dashboard (or it will be
 #      prompted during blueprint apply). The app boots fine without it — manual
 #      payments work; AI parse returns a fallback message until it's set.
-#   4. Render builds the Dockerfile (nginx SPA + Express backend, single container)
-#      and deploys on every push.
+#   4. Render builds the Dockerfile (single Express process serving /api routes
+#      and the built Vite frontend) and deploys on every push.
 
 services:
   - type: web
     name: pact
     runtime: docker
     dockerfilePath: ./Dockerfile
-    # The Dockerfile EXPOSEs 3000 (nginx serving SPA + proxying /api to the backend).
+    # Express listens on process.env.PORT (Render's assigned port) and serves
+    # both /api/* routes and the React SPA from a single process.
     plan: starter
     healthCheckPath: /api/health
     autoDeploy: true

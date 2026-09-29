@@ -1,0 +1,12 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d",
+  "secrets": [
+    {
+      "name": "OPENROUTER_API_KEY",
+      "description": "OpenRouter API key (https://openrouter.ai/keys) — used server-side only to parse natural-language payment requests (model: nvidia/nemotron-3-super-120b-a12b:free). Manual payments work without it, so the app boots fine until you add it.",
+      "requiredAtBoot": false
+    }
+  ]
+}

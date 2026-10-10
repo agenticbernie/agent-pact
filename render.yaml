@@ -37,6 +37,8 @@ services:
         value: https://api.devnet.solana.com
       - key: USDC_MINT
         value: 4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU
+      - key: PACT_POLICY_PROGRAM_ID
+        value: 6Ygcr4fxma8ddFEkRphk73UBz8Ykdx97GFxcKjNFu1WY
     # Persistent disk for the JSON store (DATA_DIR=/data in the Dockerfile).
     # Requires a paid plan (starter or above); remove this block if you don't
     # need persistence across deploys.

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { Transaction } from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import { store, StoreError } from "../../db/store";
 import { getConfig } from "../../config/env";
 import { evaluatePolicy } from "../../lib/policy/engine";
@@ -12,6 +12,20 @@ import {
   getUsdcBalance,
   submitSignedTransaction,
 } from "../solana/usdc";
+import { getConnection, usdcMint } from "../solana/connection";
+import {
+  anchorDiscriminator,
+  buildExecutePaymentIx,
+  fetchOnchainPolicy,
+  findIntentRecordPda,
+  findPolicyPda,
+  intentId32,
+  isPolicyProgramEnabled,
+  policyProgramId,
+  recipientAta,
+  vaultAta,
+  vaultBalanceBaseUnits,
+} from "../solana/policyProgram";
 
 export const INTENT_TTL_MS = 5 * 60 * 1000; // Payment intents expire after 5 minutes.
 
@@ -165,6 +179,9 @@ export async function buildIntentTransaction(id: string) {
       409
     );
   }
+  if (isPolicyProgramEnabled()) {
+    return buildPolicyProgramTransaction(intent);
+  }
   const balance = await getUsdcBalance(intent.payerWallet);
   if (!balance.hasTokenAccount || BigInt(balance.baseUnits) < BigInt(intent.amountBaseUnits)) {
     throw new IntentError(
@@ -174,6 +191,116 @@ export async function buildIntentTransaction(id: string) {
     );
   }
   return buildUsdcTransfer(intent.payerWallet, intent.recipientWallet, BigInt(intent.amountBaseUnits));
+}
+
+/**
+ * Vault-custody path: build the `execute_payment` instruction for the
+ * on-chain policy program. The backend derives every address and reads the
+ * on-chain agent identity, but enforcement happens in the program — a
+ * malicious response here cannot move funds outside policy (the wallet shows
+ * the user exactly what they sign, and the program re-validates everything).
+ */
+async function buildPolicyProgramTransaction(intent: PaymentIntent) {
+  const programId = policyProgramId();
+  if (!programId) throw new IntentError("PROGRAM_NOT_CONFIGURED", "On-chain policy program is not configured.", 500);
+  const owner = new PublicKey(intent.payerWallet);
+  const mint = usdcMint();
+  const policy = findPolicyPda(owner, programId);
+
+  const onchain = await fetchOnchainPolicy(policy);
+  if (!onchain) {
+    throw new IntentError(
+      "PROGRAM_POLICY_NOT_FOUND",
+      "No on-chain spending policy exists for this wallet. Initialize the policy and fund the vault first.",
+      404
+    );
+  }
+  if (onchain.revoked) {
+    throw new IntentError("PROGRAM_POLICY_REVOKED", "The on-chain spending policy has been revoked.", 409);
+  }
+  if (onchain.paused) {
+    throw new IntentError("PROGRAM_POLICY_PAUSED", "The on-chain spending policy is paused.", 409);
+  }
+
+  const vault = vaultAta(policy, mint);
+  const balance = await vaultBalanceBaseUnits(vault);
+  if (balance === null || balance < BigInt(intent.amountBaseUnits)) {
+    throw new IntentError(
+      "INSUFFICIENT_BALANCE",
+      "Insufficient USDC in the policy vault for this payment. Deposit first.",
+      402
+    );
+  }
+
+  const recipient = new PublicKey(intent.recipientWallet);
+  const destination = recipientAta(recipient, mint);
+  const intentId = intentId32(intent.nonce);
+  const record = findIntentRecordPda(policy, intentId, programId);
+  const ix = buildExecutePaymentIx(
+    {
+      programId,
+      owner,
+      agent: onchain.agent,
+      policy,
+      vault,
+      recipient,
+      recipientAta: destination,
+      mint,
+      intentRecord: record,
+    },
+    intentId,
+    BigInt(intent.amountBaseUnits)
+  );
+
+  const conn = getConnection();
+  const destInfo = await conn.getAccountInfo(destination);
+  const tx = new Transaction();
+  tx.add(ix);
+  const { blockhash } = await conn.getLatestBlockhash("confirmed");
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = owner;
+  const serialized = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
+  return {
+    transactionBase64: serialized.toString("base64"),
+    createsRecipientAta: destInfo === null,
+    policyProgram: {
+      programId: programId.toBase58(),
+      policy: policy.toBase58(),
+      vault: vault.toBase58(),
+      intentRecord: record.toBase58(),
+      intentIdHex: intentId.toString("hex"),
+    },
+  };
+}
+
+/**
+ * Defense-in-depth check on the wallet-signed transaction when the program
+ * path is enabled: the submitted transaction must contain the expected
+ * `execute_payment` instruction (program id, discriminator, intent id,
+ * amount, owner as first account). The program itself is authoritative;
+ * this catches backend bugs and tampered responses early.
+ */
+function verifyPolicyProgramTransaction(intent: PaymentIntent, tx: Transaction): void {
+  const programId = policyProgramId();
+  if (!programId) return;
+  const intentId = intentId32(intent.nonce);
+  const expectedDisc = anchorDiscriminator("execute_payment");
+  const found = tx.instructions.some((ix) => {
+    if (!ix.programId.equals(programId)) return false;
+    if (ix.data.length !== 8 + 32 + 8) return false;
+    if (!ix.data.subarray(0, 8).equals(expectedDisc)) return false;
+    if (!ix.data.subarray(8, 40).equals(intentId)) return false;
+    if (ix.data.readBigUInt64LE(40) !== BigInt(intent.amountBaseUnits)) return false;
+    if (ix.keys.length < 1) return false;
+    return ix.keys[0].pubkey.toBase58() === intent.payerWallet;
+  });
+  if (!found) {
+    throw new IntentError(
+      "INVALID_TRANSACTION",
+      "The signed transaction does not contain the expected policy-program payment.",
+      400
+    );
+  }
 }
 
 /**
@@ -224,6 +351,7 @@ export async function executeIntent(id: string, signedTransactionBase64: string)
       400
     );
   }
+  verifyPolicyProgramTransaction(intent, tx);
 
   // Exactly-once lock: CONFIRMED -> EXECUTING before submitting anything.
   store.updateIntent(id, "CONFIRMED", "EXECUTING", {});

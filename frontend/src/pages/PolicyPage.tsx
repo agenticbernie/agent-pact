@@ -6,6 +6,7 @@ import { AMOUNT_RE, formatBase, networkName, percentOf, toBaseUnits } from "../l
 import { settledTodayBase } from "../lib/usage";
 import { useSettings } from "../lib/useSettings";
 import { Button, Card, ErrorNote, Icon, ProgressBar, Spinner } from "../components/ui";
+import OnchainPolicyCard from "../components/OnchainPolicyCard";
 import type { Policy, Recipient } from "../types";
 
 type Mode = "everyone" | "saved";
@@ -220,6 +221,14 @@ export default function PolicyPage() {
       <Button block onClick={save} disabled={saving || !dirty}>
         {saving ? "Saving…" : "Save changes"}
       </Button>
+
+      {settings?.policyProgramId ? (
+        <OnchainPolicyCard
+          address={address}
+          policy={policy}
+          recipientWallets={mode === "saved" ? recipients.map((r) => r.walletAddress) : []}
+        />
+      ) : null}
 
       <section className="card low">
         <h2 className="date-head">System status</h2>

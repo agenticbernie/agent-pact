@@ -12,6 +12,8 @@ export interface AppConfig {
   };
   dataDir: string;
   port: number;
+  /** Pact on-chain policy program id. Unset = legacy direct-SPL path. */
+  policyProgramId?: string;
 }
 
 export function getConfig(): AppConfig {
@@ -29,5 +31,6 @@ export function getConfig(): AppConfig {
     },
     dataDir: process.env.DATA_DIR || "./data",
     port: Number(process.env.PORT || 4000),
+    policyProgramId: process.env.PACT_POLICY_PROGRAM_ID || undefined,
   };
 }

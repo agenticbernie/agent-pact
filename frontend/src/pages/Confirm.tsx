@@ -350,7 +350,14 @@ export default function Confirm() {
       <section className="card" style={{ paddingTop: 4, paddingBottom: 4 }}>
         <DetailRow label="Network" value={network} />
         <DetailRow label="Estimated network fee" value="≈ 0.000005 SOL" />
-        <DetailRow label="On-chain program" value="SPL Token Program" />
+        <DetailRow
+          label="On-chain program"
+          value={
+            settings?.policyProgramId
+              ? `Pact Policy · ${shortAddress(settings.policyProgramId, 4)}`
+              : "SPL Token Program"
+          }
+        />
       </section>
 
       <div className="banner">

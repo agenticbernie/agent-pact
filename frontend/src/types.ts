@@ -78,10 +78,28 @@ export interface AppSettings {
   usdcMint: string;
   model: string;
   aiConfigured: boolean;
+  /** Pact on-chain policy program id; null = legacy direct-SPL path. */
+  policyProgramId?: string | null;
 }
 
 export interface UsdcBalanceInfo {
   baseUnits: string;
   display: string;
   hasTokenAccount: boolean;
+}
+
+export interface OnchainPolicyStatus {
+  programId: string | null;
+  policy?: string;
+  vault?: string;
+  mint?: string;
+  initialized?: boolean;
+  agent?: string;
+  paused?: boolean;
+  revoked?: boolean;
+  expiresAt?: string;
+  maxPerPayment?: string;
+  windowLimit?: string;
+  spentInWindow?: string;
+  vaultBalanceBaseUnits?: string | null;
 }

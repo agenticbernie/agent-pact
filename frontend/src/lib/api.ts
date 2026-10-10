@@ -1,5 +1,6 @@
 import type {
   AppSettings,
+  OnchainPolicyStatus,
   ParsedPaymentIntent,
   PaymentIntent,
   Policy,
@@ -64,6 +65,27 @@ export const api = {
     request<{ ok: boolean }>(`/recipients/${id}?owner=${owner}`, { method: "DELETE" }),
 
   getPolicy: (owner: string) => request<{ policy: Policy }>(`/policy?owner=${owner}`),
+
+  getOnchainPolicy: (owner: string) =>
+    request<OnchainPolicyStatus>(`/policy/onchain?owner=${owner}`),
+
+  buildOnchainInit: (input: {
+    ownerWallet: string;
+    agent: string;
+    maxPaymentAmount: string;
+    dailyLimit: string;
+    allowedRecipients: string[];
+  }) =>
+    request<{ transactionBase64: string; policy: string }>("/policy/onchain/initialize", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  submitOnchainTx: (signedTransactionBase64: string) =>
+    request<{ signature: string; confirmed: boolean }>("/policy/onchain/submit", {
+      method: "POST",
+      body: JSON.stringify({ signedTransactionBase64 }),
+    }),
 
   updatePolicy: (input: {
     ownerWallet: string;

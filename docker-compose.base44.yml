@@ -9,6 +9,9 @@ services:
       NODE_ENV: development
       PORT: "4000"
       DATA_DIR: /data
+      # On-chain policy program (devnet, public id — not a secret).
+      # Wallets pay through the vault path; legacy direct-SPL is used when unset.
+      PACT_POLICY_PROGRAM_ID: "6Ygcr4fxma8ddFEkRphk73UBz8Ykdx97GFxcKjNFu1WY"
     env_file:
       - /run/base44/app.env
     command: ["sh", "-ec", "npm install --no-audit --no-fund && exec npm run dev"]

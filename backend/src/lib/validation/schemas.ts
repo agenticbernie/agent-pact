@@ -71,3 +71,18 @@ export const CreatePaymentIntentSchema = z.strictObject({
 export const ExecuteIntentSchema = z.strictObject({
   signedTransactionBase64: z.string().min(1).max(5000),
 });
+
+/**
+ * On-chain policy initialization. Amounts reuse the strict USDC decimal
+ * format; the allowlist cap (16) is the program account limit, not the
+ * backend contact-book limit (200).
+ */
+export const InitOnchainPolicySchema = z.strictObject({
+  ownerWallet: base58Address,
+  agent: base58Address,
+  maxPaymentAmount: usdcAmountString,
+  dailyLimit: usdcAmountString,
+  windowSeconds: z.number().int().min(1).max(31_536_000).optional(),
+  expiresAt: z.number().int().min(0).optional(),
+  allowedRecipients: z.array(base58Address).max(16).optional(),
+});

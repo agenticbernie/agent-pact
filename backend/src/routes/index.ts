@@ -21,6 +21,7 @@ export function registerRoutes(app: Express): void {
       usdcMint: cfg.solana.usdcMint,
       model: cfg.llm.model,
       aiConfigured: isAiConfigured(),
+      policyProgramId: cfg.policyProgramId ?? null,
     });
   });
 

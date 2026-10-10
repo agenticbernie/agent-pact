@@ -122,6 +122,14 @@ cd frontend && ./node_modules/.bin/tsc --noEmit && ./node_modules/.bin/vite buil
 cd backend && bun scripts/devnet-smoke.ts && bun scripts/e2e-app.ts
 ```
 
+## Troubleshooting
+
+- **Phantom shows "Failed to get assets" on devnet.** Phantom's asset view depends on its RPC indexing, which is flaky on devnet (rate limits/outages). Your funds are safe on-chain — verify on [Solana Explorer](https://explorer.solana.com/?cluster=devnet) instead. Fixes, in order:
+  1. In Phantom: Settings → Developer Settings → turn on testnet mode if needed, and set a custom devnet RPC (e.g. `https://api.devnet.solana.com` or a free Helius/QuickNode devnet endpoint), then restart the extension.
+  2. Import the same seed phrase into Solflare or Backpack (both support devnet) and operate from there.
+  3. Skip wallet UI entirely: export the private key (Phantom → account → Export Private Key — **never share it with anyone**) and deposit via CLI: `spl-token transfer <USDC_MINT> <AMOUNT> <VAULT_ADDRESS> --fund-recipient --url devnet --owner <KEYPAIR_FILE>`.
+- **Vault balance stays 0 after funding.** The vault account may not exist yet (check the explorer link under the vault row). A plain SPL transfer to the vault address creates it automatically — confirm the transfer transaction actually landed before reloading the app.
+
 ## Project info
 
 - **Status:** working devnet app; policy program deployed and smoke-tested end-to-end. Legacy flow is the default; the vault path is opt-in per wallet.

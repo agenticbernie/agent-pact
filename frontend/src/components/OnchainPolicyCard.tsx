@@ -139,8 +139,27 @@ export default function OnchainPolicyCard({
           />
           <DetailRow
             label="Vault balance"
-            value={`${formatBase(BigInt(status.vaultBalanceBaseUnits ?? "0"))} USDC`}
+            value={
+              status.vaultBalanceBaseUnits == null ? (
+                <span className="badge badge-amber">Awaiting deposit</span>
+              ) : (
+                `${formatBase(BigInt(status.vaultBalanceBaseUnits))} USDC`
+              )
+            }
           />
+          {status.vault ? (
+            <p className="micro">
+              <a
+                href={`https://explorer.solana.com/address/${status.vault}?cluster=devnet`}
+                target="_blank"
+                rel="noreferrer"
+                className="link"
+              >
+                View vault on Solana Explorer
+              </a>{" "}
+              to verify your deposit landed.
+            </p>
+          ) : null}
           <p className="micro">
             Send devnet USDC to the vault address above (tap the copy icon — a plain transfer
             from Phantom works; the vault account is created automatically). Need test USDC?

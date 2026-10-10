@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useWallet } from "../features/wallet/WalletContext";
 import { api } from "../lib/api";
-import { AMOUNT_RE, formatBase, networkName, percentOf, toBaseUnits } from "../lib/format";
+import { AMOUNT_RE, formatBase, networkName, percentOf, shortAddress, toBaseUnits } from "../lib/format";
 import { settledTodayBase } from "../lib/usage";
 import { useSettings } from "../lib/useSettings";
 import { Button, Card, ErrorNote, Icon, ProgressBar, Spinner } from "../components/ui";
@@ -239,8 +239,21 @@ export default function PolicyPage() {
           </div>
           <div>
             <div className="k">Execution</div>
-            <div className="v">{networkName(settings?.network)} · Non-custodial</div>
+            <div className="v">
+              {networkName(settings?.network)}{" "}
+              {settings?.policyProgramId ? (
+                <span className="badge badge-green">On-chain vault</span>
+              ) : (
+                <span className="badge badge-gray">Non-custodial</span>
+              )}
+            </div>
           </div>
+          {settings?.policyProgramId ? (
+            <div>
+              <div className="k">Policy program</div>
+              <div className="v mono">{shortAddress(settings.policyProgramId, 6)}</div>
+            </div>
+          ) : null}
         </div>
       </section>
     </>

@@ -25,6 +25,14 @@ export default function OnchainPolicyCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  function copy(full: string, which: string) {
+    navigator.clipboard
+      ?.writeText(full)
+      .then(() => setCopied(which))
+      .catch(() => {});
+  }
 
   const load = useCallback(async () => {
     try {
@@ -106,7 +114,21 @@ export default function OnchainPolicyCard({
       </p>
       <DetailRow label="Program" mono value={shortAddress(status.programId ?? "", 6)} />
       {status.policy ? <DetailRow label="Policy" mono value={shortAddress(status.policy, 6)} /> : null}
-      {status.vault ? <DetailRow label="Vault" mono value={shortAddress(status.vault, 6)} /> : null}
+      {status.vault ? (
+        <div className="row">
+          <div style={{ flex: 1 }}>
+            <DetailRow label="Vault" mono value={shortAddress(status.vault, 6)} />
+          </div>
+          <button
+            type="button"
+            className="icon-tile"
+            aria-label="Copy full vault address"
+            onClick={() => status.vault && copy(status.vault, "vault")}
+          >
+            <Icon name={copied === "vault" ? "check" : "content_copy"} />
+          </button>
+        </div>
+      ) : null}
 
       {status.initialized ? (
         <>
@@ -120,8 +142,9 @@ export default function OnchainPolicyCard({
             value={`${formatBase(BigInt(status.vaultBalanceBaseUnits ?? "0"))} USDC`}
           />
           <p className="micro">
-            Fund the vault with a plain USDC transfer to the address above (devnet USDC:
-            faucet.circle.com). Payments draw from the vault, never from your personal balance.
+            Send devnet USDC to the vault address above (tap the copy icon — a plain transfer
+            from Phantom works; the vault account is created automatically). Need test USDC?
+            faucet.circle.com. Payments draw from the vault, never from your personal balance.
           </p>
         </>
       ) : (
